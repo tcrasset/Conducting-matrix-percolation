@@ -166,72 +166,49 @@ void createImage(int *grid, int N, PPMImage *image, const char *filename) {
  */
 void createConductingFibers(int *grid, unsigned int nbConductingFibers, unsigned int N) {
 
-    unsigned int nbAlreadyVisited = 0;
-    for (int i = 0; i < nbConductingFibers; i++) {
-        int x = rand() % N;
-        int y = rand() % N;
-        int dir = rand() % 2;
-
-        if(grid[N * x + y] == 1){
-            nbAlreadyVisited++; //If cell is already conductive
-        }else{
-            grid[N * x + y] = 1;
-
-            // Set vertical neighbours to 1
-            if (dir == 1) {
-                //Check boundary conditions
-                if (x - 1 >= 0) {
-                    grid[N * (x - 1) + y] = 1;
-                }
-                if (x + 1 < N) {
-                    grid[N * (x + 1) + y] = 1;
-                }
-            }
-            // Set horizontal neighbours to 1
-            else {
-                //Check boundary conditions
-                if (y - 1 >= 0) {
-                    grid[N * x + (y - 1)] = 1;
-                }
-                if (y + 1 < N) {
-                    grid[N * x + (y + 1)] = 1;
-                }
-            }
-        }
+    long* randomIndex = malloc(N*N*sizeof(long));
+    if(randomIndex == NULL) {
+        perror("Error! memory not allocated.");
+        free(grid);
+        exit(EXIT_FAILURE);
     }
 
-    //printf("Already visited %f \%\n", (float) nbAlreadyVisited/nbConductingFibers);
+    //Array containing cell number that will be conductive
+    for(long i=0; i < N* N; i ++){
+        randomIndex[i] = i;
+    }
 
-    //To account for the number of cells already visited, we add
-    // the remaining conducting fibers to the grid.
-    // The division by 3 is to account for the fact that 
-    // partially overlapping fibers are not a problem, but we want
-    // to avoid completely overlapping fibers
-    for(int i = 0; i < (int) nbAlreadyVisited/3; i++){
-        int x = rand() % N;
-        int y = rand() % N;
+    //Shuffle array 
+    for (long i = 0; i < N*N - 1; i++) {
+	  long index = i + rand() / (RAND_MAX / (N*N - i) + 1);
+      long temp = randomIndex[index];
+	  randomIndex[index] = randomIndex[i];
+	  randomIndex[i] = temp;
+	}
+    
+    for (long i = 0; i < nbConductingFibers; i++) {
         int dir = rand() % 2;
-
-        grid[N * x + y] = 1;
+       
+        grid[randomIndex[i]] = 1;
 
         // Set vertical neighbours to 1
         if (dir == 1) {
             //Check boundary conditions
-            if (x - 1 >= 0) {
-                grid[N * (x - 1) + y] = 1;
+            if (randomIndex[i] - N >= 0) {
+                grid[randomIndex[i] - N] = 1;
             }
-            if (x + 1 < N) {
-                grid[N * (x + 1) + y] = 1;
+            if (randomIndex[i] + N < N * N) {
+                grid[randomIndex[i] + N] = 1;
             }
         }
         // Set horizontal neighbours to 1
         else {
             //Check boundary conditions
-            if (y - 1 >= 0) {
-                grid[N * x + (y - 1)] = 1;
+            if (randomIndex[i] % N != 0) {
+                grid[randomIndex[i] - 1] = 1;
             }
-            if (y + 1 < N) {
-                grid[N * x + (y + 1)] = 1;
+            if ((randomIndex[i] + 1) % N != 0) {
+                grid[randomIndex[i] + 1] = 1;
             }
         }
     }
@@ -367,15 +344,11 @@ int main(int argc, char **argv) {
     sscanf(argv[2], "%d", &N);
     sscanf(argv[3], "%f", &d);
 
-    printf("Args : \n Flag: %d \n N: %d \n d: %f \n", flag, N, d);
+    printf("Flag: %d N: %d d: %f \n", flag, N, d);
 
     assert((flag == 0) || (flag == 1));
     assert(N > 0);
     assert(d >= 0 && d <= 1);
-
-    int nbConductingFibers = d * N * N;
-    // printf("Conducting fibers: %d\n", nbConductingFibers);
-
     // ----------- Allocation of memory ------------------
 
     int *grid = malloc(N * N * sizeof(int));
@@ -405,10 +378,13 @@ int main(int argc, char **argv) {
     // -----------Checking conductivity of the grid------------------
     srand(time(NULL));
     time_t before = clock();
+    
+    long nbConductingFibers = (float) d *(N * N);
     createConductingFibers(grid, nbConductingFibers,N);
     int gridConductivity = isGridConducting(grid, N);
-    printf("Grid is conducting? : %s\n", gridConductivity ? "Yes!" : "No!");
+    
     int timeElapsed = (clock() - before) * 1000 / CLOCKS_PER_SEC;
+    printf("Grid is conducting? : %s\n", gridConductivity ? "Yes!" : "No!");
     printf("Time elapsed: %dms\n", timeElapsed);
 
     // -----------Creating image------------------

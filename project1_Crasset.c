@@ -7,7 +7,8 @@
 #include <string.h>
 #include <time.h>
 
-#define DO_PARALLEL false
+#define DO_PARALLEL true
+#define PLOTTING true
 
 // Struct representing a Pixel with RGB values
 typedef struct
@@ -146,6 +147,7 @@ void floodFillConnected(int *grid, int x, int y, int N) {
         exit(EXIT_FAILURE);
     }
 
+    //While the stack is not empty
     while (head != NULL) {
         //Pop a point from the stack and push its neighbours on
         head = pop(head, newPoint);
@@ -231,7 +233,7 @@ void createImage(int *grid, int N, PPMImage *image, const char *filename) {
     image->width = N;
     image->height = N;
 
-    for (int i = 0; i < N * N; i++) {
+    for (long i = 0; i < N * N; i++) {
         //Non-conducting
         if (grid[i] == 0) {
             image->data[i] = grey;
@@ -260,73 +262,50 @@ void createImage(int *grid, int N, PPMImage *image, const char *filename) {
  *  returns: /
  */
 void createConductingFibers(int *grid, unsigned int nbConductingFibers, unsigned int N) {
-    unsigned int nbAlreadyVisited = 0;
 
-    for (int i = 0; i < nbConductingFibers; i++) {
-        int x = rand() % N;
-        int y = rand() % N;
-        int dir = rand() % 2;
-
-        if (grid[N * x + y] == 1) {
-            nbAlreadyVisited++;  // If cell is already conductive
-        } else {
-            grid[N * x + y] = 1;
-
-            // Set vertical neighbours to 1
-            if (dir == 1) {
-                //Check boundary conditions
-                if (x - 1 >= 0) {
-                    grid[N * (x - 1) + y] = 1;
-                }
-                if (x + 1 < N) {
-                    grid[N * (x + 1) + y] = 1;
-                }
-            }
-            // Set horizontal neighbours to 1
-            else {
-                //Check boundary conditions
-                if (y - 1 >= 0) {
-                    grid[N * x + (y - 1)] = 1;
-                }
-                if (y + 1 < N) {
-                    grid[N * x + (y + 1)] = 1;
-                }
-            }
-        }
+    long* randomIndex = malloc(N*N*sizeof(long));
+    if(randomIndex == NULL) {
+        perror("Error! memory not allocated.");
+        free(grid);
+        exit(EXIT_FAILURE);
     }
 
-    //printf("Already visited %f \%\n", (float) nbAlreadyVisited/nbConductingFibers);
+    //Array containing cell number that will be conductive
+    for(long i=0; i < N* N; i ++){
+        randomIndex[i] = i;
+    }
 
-    //To account for the number of cells already visited, we add
-    // the remaining conducting fibers to the grid.
-    // The division by 3 is to account for the fact that
-    // partially overlapping fibers are not a problem, but we want
-    // to avoid completely overlapping fibers
-    for (int i = 0; i < (int)nbAlreadyVisited / 3; i++) {
-        int x = rand() % N;
-        int y = rand() % N;
+    //Shuffle array 
+    for (long i = 0; i < N*N - 1; i++) {
+	  long index = i + rand() / (RAND_MAX / (N*N - i) + 1);
+      long temp = randomIndex[index];
+	  randomIndex[index] = randomIndex[i];
+	  randomIndex[i] = temp;
+	}
+    
+    for (long i = 0; i < nbConductingFibers; i++) {
         int dir = rand() % 2;
-
-        grid[N * x + y] = 1;
+       
+        grid[randomIndex[i]] = 1;
 
         // Set vertical neighbours to 1
         if (dir == 1) {
             //Check boundary conditions
-            if (x - 1 >= 0) {
-                grid[N * (x - 1) + y] = 1;
+            if (randomIndex[i] - N >= 0) {
+                grid[randomIndex[i] - N] = 1;
             }
-            if (x + 1 < N) {
-                grid[N * (x + 1) + y] = 1;
+            if (randomIndex[i] + N < N * N) {
+                grid[randomIndex[i] + N] = 1;
             }
         }
         // Set horizontal neighbours to 1
         else {
             //Check boundary conditions
-            if (y - 1 >= 0) {
-                grid[N * x + (y - 1)] = 1;
+            if (randomIndex[i] % N != 0) {
+                grid[randomIndex[i] - 1] = 1;
             }
-            if (y + 1 < N) {
-                grid[N * x + (y + 1)] = 1;
+            if ((randomIndex[i] + 1) % N != 0) {
+                grid[randomIndex[i] + 1] = 1;
             }
         }
     }
@@ -346,28 +325,56 @@ void createConductingFibers(int *grid, unsigned int nbConductingFibers, unsigned
  *  returns: number of conducting grids
  */
 int monteCarlo(unsigned int nbConductingFibers, int N, int M) {
-    int nbConducting = 0;
-    int id, j = 0;
+    unsigned int nbConducting = 0;
+    unsigned int numberOfThreads;
+    int thread_id;
     int *grid = NULL;
+    double *wtime = NULL;
 
-    #pragma omp parallel if(DO_PARALLEL) private(j, id, grid) 
+    #pragma omp parallel if(DO_PARALLEL) private(grid, thread_id)
     {   
+        #pragma omp single
+        {
+            numberOfThreads = omp_get_num_threads();
+            wtime = malloc(numberOfThreads * sizeof(double));
+            if(wtime == NULL){
+                perror("Error! memory not allocated.");
+                exit(EXIT_FAILURE);
+            }
+        }
         grid = malloc(N * N * sizeof(int));
-
         if (grid == NULL) {
             perror("Error! memory not allocated.");
+            free(wtime);
             exit(EXIT_FAILURE);
         }
-        int id = omp_get_thread_num();
-        printf("Hi i'm Thread %d\n", id);
+
+        thread_id = omp_get_thread_num();
+        wtime[thread_id] = omp_get_wtime();
 
         #pragma omp for reduction(+:nbConducting)
-        for(j = 0; j < M; j++){
-            memset(grid, 0, N * N * sizeof(*grid));
+        for(int j = 0; j < M; j++){
+            memset(grid, 0, N * N * sizeof(int));
             createConductingFibers(grid, nbConductingFibers, N);
             nbConducting += isGridConducting(grid, N);
         }
+        wtime[thread_id] = (omp_get_wtime() - wtime[thread_id]) * 1000;
+
     }
+
+    double totalTime = 0;
+    for(int i = 0; i< numberOfThreads; i++){
+        totalTime += wtime[i];
+        // printf("Thread %d timeElapsed: %lf\n", i, wtime[i]);
+    }
+    if(PLOTTING){
+        printf("%u ", numberOfThreads);
+        printf("%0.lf ", totalTime/numberOfThreads);
+    }else{
+        printf("Number of threads: %u\n", numberOfThreads);
+        printf("Average time per thread: %0.lf ms\n", totalTime/numberOfThreads);
+    }
+    
 
     return nbConducting;
 }
@@ -377,57 +384,85 @@ int main(int argc, char **argv) {
     unsigned int flag, N, M;
     float d;
 
+
+    assert(argc >= 4); // Check number of arguments
+    //Scan arguments
     sscanf(argv[1], "%u", &flag);
     sscanf(argv[2], "%u", &N);
     sscanf(argv[3], "%f", &d);
-    sscanf(argv[4], "%u", &M);
 
-    printf("Args : \n Flag: %d \n N: %d \n d: %f \n M: %d \n", flag, N, d, M);
-
+    //Check argument validity
     assert((flag == 0) || (flag == 1));
     assert(N > 0);
     assert(d >= 0 && d <= 1);
-    assert(M > 0);
 
-    int nbConductingFibers = d * N * N;
-    // printf("Conducting fibers: %d\n", nbConductingFibers);
+    // printf("Flag\tN\td\tM\tNbThreads\tAvgTime\tProbability\n");
 
-    // ----------- Allocation of memory ------------------
+    // Deadline
+    if(flag == 1){
+        assert(argc == 5);
+        sscanf(argv[4], "%u", &M);
+        assert(M > 0);
+        if(PLOTTING){
+            printf("%u %u %.3f %u ", flag, N, d, M);
+        }else{
+            printf("Args :  Flag: %u  N: %u  d: %.3f  M: %u\n", flag, N, d, M);
+        }
+    // Intermediate deadline
+    }else{
+        if(PLOTTING){
+            printf("%u %u %.3f ", flag, N, d);
+        }else{
+            printf("Args :  Flag: %u  N: %u  d: %.3f\n", flag, N, d);
+        }
+    }
 
-    // PPMImage *image = malloc(sizeof(PPMImage));
-
-    // if (image == NULL) {
-    //     perror("Error! memory not allocated.");
-    //     free(grid);
-    //     exit(EXIT_FAILURE);
-    // }
-
-    // image->data = malloc(N * N * sizeof(PPMPixel));
-
-    // if (image->data == NULL) {
-    //     perror("Error! memory not allocated.");
-    //     free(grid);
-    //     free(image);
-    //     exit(EXIT_FAILURE);
-    // }
-
-    // -----------Computing probability of conducting M grids------------------
     srand(time(NULL));
-    time_t before = clock();
-    double wtime = omp_get_wtime();
-    int nbConducting = monteCarlo(nbConductingFibers, N, M);
-    int timeElapsed = (clock() - before) * 1000 / CLOCKS_PER_SEC;
-    wtime = (omp_get_wtime() - wtime) * 1000;
-    printf("Time taken by thread %d is %fms\n", omp_get_thread_num(), wtime);
-    float probability = (float)nbConducting / M;
-    printf("Probability of conductivity: %f (%d/%d), time elapsed: %dms\n",
-           probability, nbConducting, M, timeElapsed);
+    long nbConductingFibers =(float) d *(N * N);
 
-    // -----------Creating image------------------
+    if(flag == 0){ //Intermediate deadline
 
-    // createImage(grid, N, image, "conductingMaterial.ppm");
+        PPMImage *image = malloc(sizeof(PPMImage));
 
-    // free(grid);
-    // free(image->data);
-    // free(image);
+        if (image == NULL) {
+            perror("Error! memory not allocated.");
+            exit(EXIT_FAILURE);
+        }
+
+        image->data = malloc(N * N * sizeof(PPMPixel));
+
+        if (image->data == NULL) {
+            perror("Error! memory not allocated.");
+            free(image);
+            exit(EXIT_FAILURE);
+        }
+
+        int *grid = malloc(N * N * sizeof(int));
+        if (grid == NULL) {
+            perror("Error! memory not allocated.");
+            free(image->data);
+            free(image);
+            exit(EXIT_FAILURE);
+        }
+        createConductingFibers(grid, nbConductingFibers,N);
+        unsigned int gridConductivity = isGridConducting(grid, N);
+        printf("Grid is conducting? : %s\n", gridConductivity ? "Yes!" : "No!");
+        // -----------Creating image------------------
+
+        createImage(grid, N, image, "conductingMaterial.ppm");
+        free(grid);
+        free(image->data);
+        free(image);
+ 
+    }else{ //Deadline
+        unsigned int nbConducting = monteCarlo(nbConductingFibers, N, M);
+        float probability = (float)nbConducting / M;
+        if(PLOTTING){
+            printf("%.3f\n", probability);
+        } else{
+            printf("Probability of conductivity: %.3f (%d/%d)\n", probability, nbConducting, M);
+        }
+    }
+
+
 }
