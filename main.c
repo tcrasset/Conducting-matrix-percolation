@@ -9,7 +9,7 @@
 // Struct representing a Pixel with RGB values
 typedef struct
 {
-    unsigned char red, green, blue;
+    char red, green, blue;
 } PPMPixel;
 
 // Struct representing an image in PPM format
@@ -154,17 +154,17 @@ void createImage(int *grid, int N, PPMImage *image, const char *filename) {
 
 
 /* 
- * Fill the empty grid randomly with an amount of`nbConductingFibers`conducting
+ * Fill the empty grid randomly with an amount of`nbConductingCells`conducting
  * fibers that are 3 cells long
  * 
  *  grid: pointer to a square array of integer values of size N*N
- *  nbConductingFibers: integer specifying the number of conducting fibers
+ *  nbConductingCells: integer specifying the number of conducting fibers
  *                      in the grid
  *  N: size of one side of the grid
  * 
  *  returns: /
  */
-void createConductingFibers(int *grid, unsigned int nbConductingFibers, unsigned int N) {
+void createConductingFibers(int *grid, unsigned int nbConductingCells, unsigned int N) {
 
     long* randomIndex = malloc(N*N*sizeof(long));
     if(randomIndex == NULL) {
@@ -186,7 +186,7 @@ void createConductingFibers(int *grid, unsigned int nbConductingFibers, unsigned
 	  randomIndex[i] = temp;
 	}
     
-    for (long i = 0; i < nbConductingFibers; i++) {
+    for (long i = 0; i < nbConductingCells; i++) {
         int dir = rand() % 2;
        
         grid[randomIndex[i]] = 1;
@@ -309,33 +309,6 @@ int isGridConducting(int *grid, int N) {
     return 0;
 }
 
-
-
-/*
- * Function: monteCarlo
- * ----------------------------
- *  Computes the number of conducting grids out of `M` grids.
- *
- *  grid: pointer to a square array of integer values of size N*N
- *  nbConductingFibers: integer specifying the number of conducting fibers
- *                      in the grid
- *  N: size of one side of the grid
- *  M: number of grids to check
- * 
- *  returns: number of conducting grids
- */
-int monteCarlo(int *grid, unsigned int nbConductingFibers, int N, int M) {
-    int nbConducting = 0;
-
-    for (int j = 0; j < M; j++) {
-        memset(grid, 0, N * N * sizeof(*grid));
-        createConductingFibers(grid, nbConductingFibers, N);
-        nbConducting += isGridConducting(grid, N);
-    }
-
-    return nbConducting;
-}
-
 int main(int argc, char **argv) {
     unsigned int flag, N;
     float d;
@@ -379,8 +352,8 @@ int main(int argc, char **argv) {
     srand(time(NULL));
     time_t before = clock();
     
-    long nbConductingFibers = (float) d *(N * N);
-    createConductingFibers(grid, nbConductingFibers,N);
+    long nbConductingCells = (float) d *(N * N);
+    createConductingFibers(grid, nbConductingCells,N);
     int gridConductivity = isGridConducting(grid, N);
     
     int timeElapsed = (clock() - before) * 1000 / CLOCKS_PER_SEC;
