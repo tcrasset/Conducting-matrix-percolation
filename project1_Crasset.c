@@ -7,8 +7,8 @@
 #include <string.h>
 #include <time.h>
 
-#define DO_PARALLEL true
-#define PLOTTING true
+#define DO_PARALLEL false
+#define PLOTTING false
 
 // Struct representing a Pixel with RGB values
 typedef struct
@@ -263,6 +263,7 @@ void createImage(int *grid, int N, PPMImage *image, const char *filename) {
  */
 void createConductingFibers(int *grid, unsigned int nbConductingFibers, unsigned int N) {
 
+    unsigned int seed1=1, seed2=2;
     long* randomIndex = malloc(N*N*sizeof(long));
     if(randomIndex == NULL) {
         perror("Error! memory not allocated.");
@@ -277,14 +278,14 @@ void createConductingFibers(int *grid, unsigned int nbConductingFibers, unsigned
 
     //Shuffle array 
     for (long i = 0; i < N*N - 1; i++) {
-	  long index = i + rand() / (RAND_MAX / (N*N - i) + 1);
+	  long index = i + rand_r(&seed1) / (RAND_MAX / (N*N - i) + 1);
       long temp = randomIndex[index];
 	  randomIndex[index] = randomIndex[i];
 	  randomIndex[i] = temp;
 	}
     
     for (long i = 0; i < nbConductingFibers; i++) {
-        int dir = rand() % 2;
+        int dir = rand_r(&seed2) % 2;
        
         grid[randomIndex[i]] = 1;
 
