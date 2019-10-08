@@ -25,3 +25,4 @@ echo "Flag N d M NbThreads AvgTime Schedule_kind Chunk_size Probability" >> $fil
 for d in $(seq 0 0.1 1);
     do
         ./conducting 1 100 $d 1000 >> $filename
+done
