@@ -6,9 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/types.h>
+#include <unistd.h>
 
-#define DO_PARALLEL false
-#define PLOTTING false
+#define PLOTTING true
 
 // Struct representing a Pixel with RGB values
 typedef struct
@@ -194,7 +195,6 @@ int isGridConducting(int *grid, int N) {
 
     // Start a call on all the leftmost cells
     // to create a path of conducting cells from left to right
-    // #pragma omp for
     for (x = 0; x < N; x++) {
         floodFillConnected(grid, x, 0, N);
     }
@@ -263,7 +263,9 @@ void createImage(int *grid, int N, PPMImage *image, const char *filename) {
  */
 void createConductingFibers(int *grid, unsigned int nbConductingFibers, unsigned int N) {
 
-    unsigned int seed1=1, seed2=2;
+    // XOR multiple values together to get a semi-unique seed
+    unsigned int seed = (unsigned int) time(NULL) ^ getpid() ^ omp_get_thread_num();
+    
     long* randomIndex = malloc(N*N*sizeof(long));
     if(randomIndex == NULL) {
         perror("Error! memory not allocated.");
@@ -278,14 +280,14 @@ void createConductingFibers(int *grid, unsigned int nbConductingFibers, unsigned
 
     //Shuffle array 
     for (long i = 0; i < N*N - 1; i++) {
-	  long index = i + rand_r(&seed1) / (RAND_MAX / (N*N - i) + 1);
+	  long index = i + rand_r(&seed) / (RAND_MAX / (N*N - i) + 1);
       long temp = randomIndex[index];
 	  randomIndex[index] = randomIndex[i];
 	  randomIndex[i] = temp;
 	}
     
     for (long i = 0; i < nbConductingFibers; i++) {
-        int dir = rand_r(&seed2) % 2;
+        int dir = rand_r(&seed) % 2;
        
         grid[randomIndex[i]] = 1;
 
@@ -332,7 +334,7 @@ int monteCarlo(unsigned int nbConductingFibers, int N, int M) {
     int *grid = NULL;
     double *wtime = NULL;
 
-    #pragma omp parallel if(DO_PARALLEL) private(grid, thread_id)
+    #pragma omp parallel private(grid, thread_id) 
     {   
         #pragma omp single
         {
@@ -353,7 +355,7 @@ int monteCarlo(unsigned int nbConductingFibers, int N, int M) {
         thread_id = omp_get_thread_num();
         wtime[thread_id] = omp_get_wtime();
 
-        #pragma omp for reduction(+:nbConducting)
+        #pragma omp for schedule(runtime) reduction(+:nbConducting)
         for(int j = 0; j < M; j++){
             memset(grid, 0, N * N * sizeof(int));
             createConductingFibers(grid, nbConductingFibers, N);
@@ -368,9 +370,22 @@ int monteCarlo(unsigned int nbConductingFibers, int N, int M) {
         totalTime += wtime[i];
         // printf("Thread %d timeElapsed: %lf\n", i, wtime[i]);
     }
+
+    // Get the scheduling type and chunk size that was
+    omp_sched_t kind;
+    int chunk;
+    omp_get_schedule(&kind, &chunk);
+    const char *kind_verbose[4];
+    kind_verbose[0] = "static";
+    kind_verbose[1] = "dynamic";
+    kind_verbose[2] = "guided";
+    kind_verbose[3] = "auto";
+
     if(PLOTTING){
         printf("%u ", numberOfThreads);
         printf("%0.lf ", totalTime/numberOfThreads);
+        printf("%s ", kind_verbose[kind-1]);
+        printf("%d ", chunk);
     }else{
         printf("Number of threads: %u\n", numberOfThreads);
         printf("Average time per thread: %0.lf ms\n", totalTime/numberOfThreads);
@@ -397,8 +412,6 @@ int main(int argc, char **argv) {
     assert(N > 0);
     assert(d >= 0 && d <= 1);
 
-    // printf("Flag\tN\td\tM\tNbThreads\tAvgTime\tProbability\n");
-
     // Deadline
     if(flag == 1){
         assert(argc == 5);
@@ -412,7 +425,7 @@ int main(int argc, char **argv) {
     // Intermediate deadline
     }else{
         if(PLOTTING){
-            printf("%u %u %.3f ", flag, N, d);
+            printf("%u %u %.3f \n", flag, N, d);
         }else{
             printf("Args :  Flag: %u  N: %u  d: %.3f\n", flag, N, d);
         }
