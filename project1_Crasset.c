@@ -9,6 +9,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "my_rand.c"
+
 #define PLOTTING true
 
 // Struct representing a Pixel with RGB values
@@ -264,7 +266,10 @@ void createImage(int *grid, int N, PPMImage *image, const char *filename) {
 void createConductingFibers(int *grid, unsigned int nbConductingFibers, unsigned int N) {
 
     // XOR multiple values together to get a semi-unique seed
-    unsigned int seed = (unsigned int) time(NULL) ^ getpid() ^ omp_get_thread_num();
+    Seed seed;
+    init_seed(&seed);
+    // unsigned int seed = (unsigned int) time(NULL) ^ getpid() ^ omp_get_thread_num();
+    // unsigned int seed = 0;
     
     long* randomIndex = malloc(N*N*sizeof(long));
     if(randomIndex == NULL) {
@@ -277,17 +282,18 @@ void createConductingFibers(int *grid, unsigned int nbConductingFibers, unsigned
     for(long i=0; i < N* N; i ++){
         randomIndex[i] = i;
     }
-
     //Shuffle array 
     for (long i = 0; i < N*N - 1; i++) {
-	  long index = i + rand_r(&seed) / (RAND_MAX / (N*N - i) + 1);
+	//   long index = i + rand_r(&seed) / (RAND_MAX / (N*N - i) + 1);
+	  long index = i + my_rand(&seed) % (N*N - i);
       long temp = randomIndex[index];
 	  randomIndex[index] = randomIndex[i];
 	  randomIndex[i] = temp;
 	}
     
     for (long i = 0; i < nbConductingFibers; i++) {
-        int dir = rand_r(&seed) % 2;
+        // int dir = rand_r(&seed) % 2;
+        int dir = my_rand(&seed) % 2;
        
         grid[randomIndex[i]] = 1;
 
