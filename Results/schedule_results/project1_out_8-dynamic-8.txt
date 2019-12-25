@@ -1,0 +1,12 @@
+Flag N d M NbThreads AvgTime Schedule_kind Chunk_size Probability
+1 100 0.000 1000 8 96 dynamic 8 0.000
+1 100 0.100 1000 8 97 dynamic 8 0.000
+1 100 0.200 1000 8 169 dynamic 8 0.185
+1 100 0.300 1000 8 440 dynamic 8 1.000
+1 100 0.400 1000 8 521 dynamic 8 1.000
+1 100 0.500 1000 8 571 dynamic 8 1.000
+1 100 0.600 1000 8 614 dynamic 8 1.000
+1 100 0.700 1000 8 634 dynamic 8 1.000
+1 100 0.800 1000 8 661 dynamic 8 1.000
+1 100 0.900 1000 8 673 dynamic 8 1.000
+1 100 1.000 1000 8 702 dynamic 8 1.000
